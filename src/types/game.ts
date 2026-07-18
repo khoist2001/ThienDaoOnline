@@ -38,6 +38,7 @@ export interface Item {
     atk?: number;
     def?: number;
     hp?: number;
+    exp?: number;
     expBoost?: number;
     successRateBoost?: number;
   };

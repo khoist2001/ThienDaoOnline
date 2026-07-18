@@ -189,4 +189,101 @@ export const apiClient = {
       return { status: 'error', message: e.message };
     }
   },
+
+  async leaveGuild() {
+    try {
+      return await request('/guilds/leave', { method: 'POST' });
+    } catch (e: any) {
+      return { status: 'error', message: e.message };
+    }
+  },
+
+  async donateGuild(amount: number) {
+    try {
+      return await request('/guilds/donate', {
+        method: 'POST',
+        body: JSON.stringify({ amount }),
+      });
+    } catch (e: any) {
+      return { status: 'error', message: e.message };
+    }
+  },
+
+  async upgradeGuildSlots() {
+    try {
+      return await request('/guilds/upgrade-slots', { method: 'POST' });
+    } catch (e: any) {
+      return { status: 'error', message: e.message };
+    }
+  },
+
+  // ── Shop API ──
+  async getShopItems() {
+    try { return await request('/shop/items'); } catch (e) { return null; }
+  },
+
+  async buyShopItem(itemId: number) {
+    try {
+      return await request('/shop/buy', {
+        method: 'POST',
+        body: JSON.stringify({ itemId }),
+      });
+    } catch (e: any) {
+      return { status: 'error', message: e.message };
+    }
+  },
+
+  async adminCreateShopItem(itemData: any) {
+    try {
+      return await request('/admin/shop/items', {
+        method: 'POST',
+        body: JSON.stringify(itemData),
+      });
+    } catch (e: any) {
+      return { status: 'error', message: e.message };
+    }
+  },
+
+  async adminDeleteShopItem(id: number) {
+    try {
+      return await request(`/admin/shop/items/${id}`, { method: 'DELETE' });
+    } catch (e: any) {
+      return { status: 'error', message: e.message };
+    }
+  },
+
+  // ── Giftcode API ──
+  async adminGetGiftcodes() {
+    try { return await request('/admin/giftcodes'); } catch (e) { return null; }
+  },
+
+  async adminCreateGiftcode(codeData: any) {
+    try {
+      return await request('/admin/giftcodes', {
+        method: 'POST',
+        body: JSON.stringify(codeData),
+      });
+    } catch (e: any) {
+      return { status: 'error', message: e.message };
+    }
+  },
+
+  async adminDeleteGiftcode(id: number) {
+    try {
+      return await request(`/admin/giftcodes/${id}`, { method: 'DELETE' });
+    } catch (e: any) {
+      return { status: 'error', message: e.message };
+    }
+  },
+
+  async redeemGiftcode(code: string) {
+    try {
+      return await request('/giftcodes/redeem', {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+      });
+    } catch (e: any) {
+      return { status: 'error', message: e.message };
+    }
+  },
 };

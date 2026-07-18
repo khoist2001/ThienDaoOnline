@@ -198,7 +198,7 @@ interface GameState extends GameSnapshot {
   toggleTheme: () => void;
   createCharacter: (name: string, root: SpiritualRootType, sect: string) => void;
   addExp: (amount: number) => void;
-  meditate: (durationMinutes: number) => void;
+  meditate: (durationMinutes: number) => any;
   attemptBreakthrough: (usePill?: boolean) => boolean;
   equipItem: (item: Item) => void;
   unequipItem: (slot: keyof Character['equippedItems']) => void;
@@ -382,18 +382,59 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   meditate: (durationMinutes) => {
     const state = get();
-    const expGain = durationMinutes * 15 * state.character.spiritualRootBonus;
-    const stonesGain = Math.floor(durationMinutes * 3);
+    const char = state.character;
+    const bonus = char.spiritualRootBonus || 1.0;
+
+    const baseExpGain = Math.floor(durationMinutes * 25 * bonus);
+    const baseStonesGain = Math.floor(durationMinutes * 6 * bonus);
     const spGain = durationMinutes * 10;
+
+    let newExp = char.exp + baseExpGain;
+    let extraStones = 0;
+
+    // EXP Overfill Protection: Convert overflow EXP to extra Spirit Stones when capping maxExp
+    if (newExp > char.maxExp) {
+      const overflow = newExp - char.maxExp;
+      newExp = char.maxExp;
+      extraStones = Math.floor(overflow * 0.5);
+    }
+
+    const totalStones = baseStonesGain + extraStones;
+    const newInventory = [...state.inventory];
+    let rewardItemName = '';
+
+    // Bonus reward items for longer meditation sessions
+    if (durationMinutes >= 60) {
+      newInventory.push({
+        id: 'pill-med-' + Date.now(),
+        name: 'Tụ Linh Thần Đan',
+        type: 'Pill',
+        rarity: 'Thiên',
+        description: 'Thần đan tích tụ từ 1 giờ bế quan nhập định.',
+        icon: '🧪',
+        value: 300,
+        stats: { exp: 1000 },
+        quantity: 1,
+      });
+      rewardItemName = 'Tụ Linh Thần Đan 🧪';
+    }
 
     set((s) => ({
       character: {
         ...s.character,
-        exp: Math.min(s.character.exp + expGain, s.character.maxExp),
-        spiritStones: s.character.spiritStones + stonesGain,
+        exp: newExp,
+        spiritStones: s.character.spiritStones + totalStones,
         spiritualPower: Math.min(s.character.spiritualPower + spGain, s.character.maxSpiritualPower),
       },
+      inventory: newInventory,
     }));
+
+    return {
+      expGain: baseExpGain,
+      stonesGain: totalStones,
+      extraStones,
+      rewardItemName,
+    };
   },
 
   attemptBreakthrough: (usePill = false) => {

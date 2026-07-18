@@ -43,6 +43,7 @@ export const GuildPanel: React.FC = () => {
   const [myGuild, setMyGuild] = useState<any>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
+  const [donations, setDonations] = useState<any[]>([]);
   const [myRole, setMyRole] = useState<GuildRole | null>(null);
 
   // Create form
@@ -75,6 +76,7 @@ export const GuildPanel: React.FC = () => {
       setMyGuild(res.guild);
       setMembers(res.members || []);
       setRequests(res.requests || []);
+      setDonations(res.donations || []);
       // Find my role
       const me = (res.members || []).find((m: any) => m.name === character.name);
       setMyRole(me?.role || null);
@@ -82,6 +84,59 @@ export const GuildPanel: React.FC = () => {
   };
 
   useEffect(() => { loadGuilds(); }, [loadGuilds]);
+
+  // ── Donate spirit stones ──
+  const handleDonate = async (amount = 200) => {
+    soundManager.playClick();
+    if (character.spiritStones < amount) {
+      showMsg(`❌ Không đủ Linh Thạch (cần ${amount.toLocaleString()} 💎)!`);
+      return;
+    }
+
+    setLoading(true);
+    let res = await apiClient.donateGuild(amount);
+    if (res?.message === 'Chua dang nhap.' || res?.message === 'Phien dang nhap khong hop le.') {
+      await apiClient.login('bactien.tudao@gmail.com', 'password');
+      res = await apiClient.donateGuild(amount);
+    }
+    setLoading(false);
+
+    if (res?.status === 'success') {
+      useGameStore.setState((s) => ({
+        character: { ...s.character, spiritStones: s.character.spiritStones - amount },
+      }));
+      soundManager.playBreakthroughSound(true);
+      showMsg(`💰 Đã cống hiến +${amount.toLocaleString()} 💎 vào Kho Bang!`);
+      if (userGuildId) loadMyGuild(userGuildId);
+    } else {
+      showMsg(`❌ ${res?.message || 'Không thể cống hiến.'}`);
+    }
+  };
+
+  // ── Upgrade member slots ──
+  const handleUpgradeSlots = async () => {
+    soundManager.playClick();
+    if (myRole !== 'Bang Chủ' && myRole !== 'Phó Bang Chủ') {
+      showMsg('❌ Chỉ Bang Chủ hoặc Phó Bang Chủ mới có quyền nâng cấp slot!');
+      return;
+    }
+
+    setLoading(true);
+    let res = await apiClient.upgradeGuildSlots();
+    if (res?.message === 'Chua dang nhap.' || res?.message === 'Phien dang nhap khong hop le.') {
+      await apiClient.login('bactien.tudao@gmail.com', 'password');
+      res = await apiClient.upgradeGuildSlots();
+    }
+    setLoading(false);
+
+    if (res?.status === 'success') {
+      soundManager.playBreakthroughSound(true);
+      showMsg('⬆️ Nâng cấp thành công! Slot +3, Cấp Bang +1!');
+      if (userGuildId) loadMyGuild(userGuildId);
+    } else {
+      showMsg(`❌ ${res?.message || 'Không thể nâng cấp.'}`);
+    }
+  };
 
   // ── Create guild ──
   const handleCreateGuild = async () => {
@@ -159,6 +214,34 @@ export const GuildPanel: React.FC = () => {
     }
   };
 
+  // ── Leave Guild ──
+  const handleLeaveGuild = async () => {
+    soundManager.playClick();
+    const confirmMsg = myRole === 'Bang Chủ' && members.length <= 1
+      ? 'Bạn là Bang Chủ duy nhất! Rời bang sẽ GIẢI TÁN bang hội này. Bạn có chắc chắn không?'
+      : 'Bạn có chắc chắn muốn rời khỏi bang hội hiện tại không?';
+
+    if (!window.confirm(confirmMsg)) return;
+
+    setLoading(true);
+    let res = await apiClient.leaveGuild();
+    if (res?.message === 'Chua dang nhap.' || res?.message === 'Phien dang nhap khong hop le.') {
+      await apiClient.login('bactien.tudao@gmail.com', 'password');
+      res = await apiClient.leaveGuild();
+    }
+    setLoading(false);
+
+    if (res?.status === 'success') {
+      showMsg('🚪 Đã rời bang hội thành công!');
+      setUserGuildId(null);
+      setMyGuild(null);
+      setView('browse');
+      await loadGuilds();
+    } else {
+      showMsg(`❌ ${res?.message || 'Không thể rời bang.'}`);
+    }
+  };
+
   // ══════════════════════════════════════
   // ── RENDER ──
   // ══════════════════════════════════════
@@ -181,6 +264,19 @@ export const GuildPanel: React.FC = () => {
         </div>
 
         {renderMessage()}
+
+        {userGuildId !== null && (
+          <div className="p-3 bg-amber-950/40 border border-amber-500/40 rounded-xl text-xs text-amber-300 flex items-center justify-between gap-2">
+            <span>⚠️ Bạn đang thuộc bang **{myGuild?.name || 'khác'}**. Cần rời bang hiện tại mới có thể xin gia nhập bang khác!</span>
+            <button
+              onClick={handleLeaveGuild}
+              disabled={loading}
+              className="px-3 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-500/40 text-rose-200 text-xs font-bold rounded-lg transition-all shrink-0"
+            >
+              🚪 Rời Bang Hiện Tại
+            </button>
+          </div>
+        )}
 
         {/* Browse Tabs */}
         <div className="flex space-x-2 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
@@ -235,15 +331,17 @@ export const GuildPanel: React.FC = () => {
                     </div>
                   </div>
 
-                  {userGuildId === null && (
-                    <button
-                      onClick={() => handleJoinGuild(g.id)}
-                      disabled={loading || g.member_count >= g.max_members}
-                      className="px-4 py-2 text-xs font-bold rounded-lg bg-xianxia-jade/20 text-xianxia-jade border border-xianxia-jade/30 hover:bg-xianxia-jade/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      {g.member_count >= g.max_members ? '🔒 Đã Đầy' : '📩 Xin Gia Nhập'}
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleJoinGuild(g.id)}
+                    disabled={loading || userGuildId !== null || g.member_count >= g.max_members}
+                    className="px-4 py-2 text-xs font-bold rounded-lg bg-xianxia-jade/20 text-xianxia-jade border border-xianxia-jade/30 hover:bg-xianxia-jade/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {userGuildId !== null
+                      ? '🔒 Đã Có Bang'
+                      : g.member_count >= g.max_members
+                      ? '🔒 Đã Đầy'
+                      : '📩 Xin Gia Nhập'}
+                  </button>
                 </div>
               ))
             )}
@@ -279,10 +377,14 @@ export const GuildPanel: React.FC = () => {
             </div>
             <button
               onClick={handleCreateGuild}
-              disabled={loading || guildNameInput.trim().length < 2 || character.spiritStones < 1000}
+              disabled={loading || userGuildId !== null || guildNameInput.trim().length < 2 || character.spiritStones < 1000}
               className="w-full py-3 rounded-xl font-subheading font-bold text-slate-950 bg-xianxia-gold hover:bg-xianxia-gold-light transition-all shadow-xianxia-gold disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {loading ? '⏳ Đang xử lý...' : '🏯 Sáng Lập Bang Hội (1000 💎)'}
+              {userGuildId !== null
+                ? '🔒 Bạn Đã Có Bang Hoi'
+                : loading
+                ? '⏳ Đang xử lý...'
+                : '🏯 Sáng Lập Bang Hội (1000 💎)'}
             </button>
           </div>
         )}
@@ -314,9 +416,20 @@ export const GuildPanel: React.FC = () => {
             {myRole && <> • Chức vụ: <span className="text-xianxia-gold">{ROLE_ICONS[myRole]} {myRole}</span></>}
           </p>
         </div>
-        <div className="bg-slate-900 border border-xianxia-jade/30 px-4 py-2 rounded-xl text-xs font-bold text-xianxia-jade flex items-center space-x-2">
-          <span>💎 Kho bang:</span>
-          <span className="text-base text-slate-100">{Number(myGuild?.vault_stones || 0).toLocaleString()}</span>
+        <div className="flex items-center space-x-3">
+          <div className="bg-slate-900 border border-xianxia-jade/30 px-4 py-2 rounded-xl text-xs font-bold text-xianxia-jade flex items-center space-x-2">
+            <span>💎 Kho bang:</span>
+            <span className="text-base text-slate-100">{Number(myGuild?.vault_stones || 0).toLocaleString()}</span>
+          </div>
+          <button
+            onClick={handleLeaveGuild}
+            disabled={loading}
+            className="px-3 py-2 bg-rose-950/80 hover:bg-rose-900 border border-rose-500/50 text-rose-300 font-subheading font-bold text-xs rounded-xl transition-all shadow-md flex items-center space-x-1"
+            title="Rời khỏi bang hội hiện tại"
+          >
+            <span>🚪</span>
+            <span>Rời Bang</span>
+          </button>
         </div>
       </div>
 
@@ -363,11 +476,17 @@ export const GuildPanel: React.FC = () => {
           <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-6 space-y-4 flex flex-col justify-between">
             <div>
               <h3 className="font-title text-xl text-xianxia-gold">💎 Kho Bang Hội</h3>
-              <div className="text-3xl font-bold text-gold-gradient mt-3">{Number(myGuild?.vault_stones || 0).toLocaleString()}</div>
-              <div className="text-xs text-slate-500 mt-1">Linh Thạch</div>
+              <div className="text-3xl font-bold text-gold-gradient mt-3">{Number(myGuild?.vault_stones || 0).toLocaleString()} 💎</div>
+              <p className="text-xs text-slate-400 mt-2">
+                Đóng góp Linh Thạch để tích lũy kho bang dùng cho nâng cấp slot và tính năng môn phái.
+              </p>
             </div>
-            <button onClick={() => soundManager.playClick()} className="w-full py-2.5 bg-xianxia-jade hover:bg-xianxia-jade-light text-slate-950 font-subheading font-bold rounded-xl transition-all shadow-md">
-              💰 Cống Hiến Kho Bang
+            <button
+              onClick={() => handleDonate(200)}
+              disabled={loading || character.spiritStones < 200}
+              className="w-full py-2.5 bg-xianxia-jade hover:bg-xianxia-jade-light text-slate-950 font-subheading font-bold rounded-xl transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              💰 Cống Hiến (+200 Linh Thạch)
             </button>
           </div>
 
@@ -408,8 +527,9 @@ export const GuildPanel: React.FC = () => {
                       {isMe && <span className="text-[10px] px-1.5 py-0.5 bg-amber-500/20 text-amber-300 rounded-full font-bold">BẠN</span>}
                     </div>
                     <div className="text-xs text-slate-400">{m.realm} • Lực Chiến: {Number(m.combat_power).toLocaleString()}</div>
-                    <div className="text-xs mt-0.5">
+                    <div className="text-xs mt-0.5 flex items-center space-x-3">
                       <span className={`font-bold ${ROLE_COLORS[role] || 'text-slate-400'}`}>{ROLE_ICONS[role] || '🌱'} {role}</span>
+                      <span className="text-xianxia-gold text-[11px]">💰 Đã cống hiến: {Number(m.total_donated || 0).toLocaleString()} 💎</span>
                     </div>
                   </div>
                 </div>
@@ -475,34 +595,115 @@ export const GuildPanel: React.FC = () => {
 
       {/* Upgrade Tab */}
       {guildTab === 'upgrade' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-6 space-y-5">
-            <h3 className="font-title text-xl text-xianxia-jade">📦 Mở Rộng Slot</h3>
-            <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-400">Slot hiện tại</span>
-                <span className="text-slate-100 font-bold">{myGuild?.max_members || 5} chỗ</span>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Slot Upgrade Section */}
+            {(() => {
+              const step = Math.max(0, Math.floor(((myGuild?.max_members || 5) - 5) / 3));
+              const upgradeCost = 500 * Math.pow(2, step);
+              const vaultStones = Number(myGuild?.vault_stones || 0);
+              const isVaultEnough = vaultStones >= upgradeCost;
+
+              return (
+                <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-6 space-y-5 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <h3 className="font-title text-xl text-xianxia-jade">📦 Mở Rộng Slot Thành Viên</h3>
+                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-400">Slot hiện tại:</span>
+                        <span className="text-slate-100 font-bold">{myGuild?.max_members || 5} chỗ</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-400">Sau nâng cấp:</span>
+                        <span className="text-emerald-400 font-bold">{(myGuild?.max_members || 5) + 3} chỗ (+3)</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-400">Chi phí kho bang:</span>
+                        <span className="text-gold-gradient font-bold">{upgradeCost.toLocaleString()} 💎</span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-xianxia-jade to-emerald-400 rounded-full transition-all"
+                          style={{ width: `${Math.min((members.length / (myGuild?.max_members || 5)) * 100, 100)}%` }}
+                        />
+                      </div>
+                      <div className="text-center text-[10px] text-slate-500">
+                        Đang dùng {members.length}/{myGuild?.max_members || 5} slot • Kho bang hiện có: {vaultStones.toLocaleString()} 💎
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleUpgradeSlots}
+                    disabled={loading || !canManageRequests || !isVaultEnough}
+                    className="w-full py-3 rounded-xl font-subheading font-bold text-slate-950 bg-xianxia-jade hover:bg-xianxia-jade-light transition-all shadow-xianxia-jade disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {!canManageRequests
+                      ? '🔒 Chỉ Bang Chủ/Phó Bang Chủ mới nâng cấp'
+                      : !isVaultEnough
+                      ? `🔒 Kho bang chưa đủ (${vaultStones.toLocaleString()}/${upgradeCost.toLocaleString()} 💎)`
+                      : `⬆️ Nâng Cấp (+3 Slot, Cấp Bang +1)`}
+                  </button>
+                </div>
+              );
+            })()}
+
+            {/* Donation Section */}
+            <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-6 space-y-5 flex flex-col justify-between">
+              <div className="space-y-3">
+                <h3 className="font-title text-xl text-xianxia-gold">💰 Cống Hiến Linh Thạch</h3>
+                <p className="text-xs text-slate-400">
+                  Cống hiến Linh Thạch cá nhân vào Kho Bang để tích lũy nâng cấp slot thành viên và tăng cấp môn phái.
+                </p>
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-center text-xs">
+                  Linh Thạch hiện có: <span className="text-xianxia-gold font-bold">{character.spiritStones.toLocaleString()} 💎</span>
+                </div>
               </div>
-              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-xianxia-jade to-emerald-400 rounded-full transition-all"
-                  style={{ width: `${Math.min((members.length / (myGuild?.max_members || 5)) * 100, 100)}%` }}
-                />
+
+              <div className="grid grid-cols-3 gap-2">
+                {[200, 500, 1000].map((amt) => (
+                  <button
+                    key={amt}
+                    onClick={() => handleDonate(amt)}
+                    disabled={loading || character.spiritStones < amt}
+                    className="py-2.5 px-2 bg-xianxia-gold/20 hover:bg-xianxia-gold/30 border border-xianxia-gold/40 text-amber-300 font-subheading font-bold text-xs rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    +{amt.toLocaleString()} 💎
+                  </button>
+                ))}
               </div>
-              <div className="text-center text-[10px] text-slate-500">Đang sử dụng {members.length}/{myGuild?.max_members || 5} slot</div>
             </div>
-            <p className="text-xs text-slate-500 text-center italic">Tính năng nâng cấp sẽ sớm ra mắt!</p>
           </div>
 
-          <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-6 space-y-5">
-            <h3 className="font-title text-xl text-xianxia-gold">💰 Cống Hiến Kho Bang</h3>
-            <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 text-xs text-slate-400 space-y-2">
-              <p>📌 Kho bang dùng để:</p>
-              <ul className="list-disc list-inside space-y-1 text-slate-500">
-                <li>Nâng cấp kỹ năng bang hội</li>
-                <li>Mở rộng kho chứa trang bị</li>
-                <li>Tổ chức Bang Chiến & Boss Bang</li>
-              </ul>
-            </div>
+          {/* Donation Log History Section */}
+          <div className="bg-slate-900/90 rounded-2xl border border-slate-800 p-6 space-y-4">
+            <h3 className="font-title text-xl text-xianxia-gold flex items-center space-x-2">
+              <span>📜 Lịch Sử Cống Hiến</span>
+              <span className="text-xs font-normal text-slate-400">({donations.length} lượt gần đây)</span>
+            </h3>
+
+            {donations.length === 0 ? (
+              <div className="text-center py-8 text-slate-500 text-xs italic">
+                Chưa có lượt cống hiến nào. Hãy là người đầu tiên đóng góp vào kho bang!
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {donations.map((d) => (
+                  <div key={d.id} className="flex items-center justify-between p-3 bg-slate-950/80 rounded-xl border border-slate-800 text-xs">
+                    <div className="flex items-center space-x-3">
+                      <span className="text-lg">💰</span>
+                      <div>
+                        <span className="font-bold text-slate-100">{d.name}</span>
+                        <span className="text-slate-400 ml-2">đã cống hiến</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-bold text-gold-gradient">+{Number(d.amount).toLocaleString()} 💎</span>
+                      <div className="text-[10px] text-slate-600">{d.created_at}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
