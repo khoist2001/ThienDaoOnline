@@ -79,6 +79,22 @@ class AuthController
         }
     }
 
+    private function issueToken(PDO $pdo, int $userId): string
+    {
+        $token = bin2hex(random_bytes(32));
+        $stmt = $pdo->prepare("INSERT INTO `game_sessions` (`user_id`, `token_hash`, `expires_at`, `created_at`, `updated_at`) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY), NOW(), NOW())");
+        $stmt->execute([$userId, hash('sha256', $token)]);
+        return $token;
+    }
+
+    private function loadGameState(PDO $pdo, int $userId): ?array
+    {
+        $stmt = $pdo->prepare("SELECT `state` FROM `game_states` WHERE `user_id` = ? LIMIT 1");
+        $stmt->execute([$userId]);
+        $row = $stmt->fetch();
+        return $row ? json_decode($row['state'], true) : null;
+    }
+
     public function testDatabase()
     {
         $this->applyCorsHeaders();
@@ -143,12 +159,14 @@ class AuthController
                 $existing = $checkStmt->fetch();
 
                 if ($existing) {
-                    $userId = $existing['id'];
-                    $savedToDb = true;
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Email da duoc dang ky.',
+                    ], 409);
                 } else {
                     // Insert into MySQL users table
-                    $stmt = $pdo->prepare("INSERT INTO `users` (`name`, `email`, `password`) VALUES (?, ?, ?)");
-                    $stmt->execute([$name, $email, $password]);
+                    $stmt = $pdo->prepare("INSERT INTO `users` (`name`, `email`, `password`, `role`, `status`) VALUES (?, ?, ?, ?, 'Active')");
+                    $stmt->execute([$name, $email, $password, $role]);
                     $userId = $pdo->lastInsertId();
 
                     // Insert into MySQL characters table
@@ -160,6 +178,16 @@ class AuthController
                 $errMsg = $e->getMessage();
             }
         }
+
+        if (!$pdo || !$savedToDb) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Khong the luu tai khoan vao MySQL.',
+                'db_error' => $errMsg,
+            ], 503);
+        }
+
+        $token = $this->issueToken($pdo, (int) $userId);
 
         return response()->json([
             'status' => 'success',
@@ -173,7 +201,8 @@ class AuthController
                 'name' => $name,
                 'role' => $role,
             ],
-            'token' => 'thien_dao_token_'.bin2hex(random_bytes(16)),
+            'gameState' => $this->loadGameState($pdo, (int) $userId),
+            'token' => $token,
         ]);
     }
 
@@ -199,9 +228,9 @@ class AuthController
 
                 if (!$userRecord) {
                     $name = $isAdmin ? 'Quản Trị Viên Huyết Lệnh' : 'Tu Sĩ ' . ucfirst(explode('@', $email)[0]);
-                    $pass = password_hash('123456', PASSWORD_DEFAULT);
-                    $insStmt = $pdo->prepare("INSERT INTO `users` (`name`, `email`, `password`) VALUES (?, ?, ?)");
-                    $insStmt->execute([$name, $email, $pass]);
+                    $pass = password_hash((string) $request->input('password', '123456'), PASSWORD_DEFAULT);
+                    $insStmt = $pdo->prepare("INSERT INTO `users` (`name`, `email`, `password`, `role`, `status`) VALUES (?, ?, ?, ?, 'Active')");
+                    $insStmt->execute([$name, $email, $pass, $role]);
                     $userId = $pdo->lastInsertId();
 
                     $charStmt = $pdo->prepare("INSERT INTO `characters` (`user_id`, `name`, `title`, `realm_id`, `spiritual_root_id`, `sect_id`, `combat_power`, `spirit_stones`) VALUES (?, ?, ?, ?, 8, 1, ?, ?)");
@@ -222,6 +251,24 @@ class AuthController
             }
         }
 
+        if (!$pdo || !$savedToDb) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Khong the ket noi hoac doc tai khoan tu MySQL.',
+                'db_error' => $errMsg,
+            ], 503);
+        }
+
+        if ($userRecord && ($userRecord['status'] ?? 'Active') === 'Banned') {
+            return response()->json(['status' => 'error', 'message' => 'Tai khoan da bi khoa.'], 403);
+        }
+
+        $resolvedUserId = (int) ($userRecord['id'] ?? $userId);
+        if ($userRecord && !password_verify((string) $request->input('password', ''), $userRecord['password'])) {
+            return response()->json(['status' => 'error', 'message' => 'Mat khau khong chinh xac.'], 401);
+        }
+        $token = $this->issueToken($pdo, $resolvedUserId);
+
         return response()->json([
             'status' => 'success',
             'saved_to_mysql' => $savedToDb,
@@ -229,12 +276,13 @@ class AuthController
             'db_error' => $errMsg,
             'message' => $isAdmin ? 'Mở cửa Tiên Môn với quyền Administrator!' : 'Đăng nhập thành công vào cõi Tiên Giới!',
             'user' => [
-                'id' => $userRecord['id'] ?? ($isAdmin ? 1 : 2),
+                'id' => $resolvedUserId,
                 'name' => $userRecord['name'] ?? ($isAdmin ? 'Quản Trị Viên Huyết Lệnh' : 'Bắc Phong'),
                 'email' => $email,
                 'role' => $role,
             ],
-            'token' => 'thien_dao_token_'.bin2hex(random_bytes(16)),
+            'gameState' => $this->loadGameState($pdo, $resolvedUserId),
+            'token' => $token,
         ]);
     }
 

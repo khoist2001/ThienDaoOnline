@@ -17,7 +17,7 @@ export const ImmortalGateModal: React.FC<ImmortalGateModalProps> = ({
   const { loginAccount } = useGameStore();
   const [tab, setTab] = useState<'login' | 'register' | 'forgot'>('login');
   const [email, setEmail] = useState('bactien.tudao@gmail.com');
-  const [password, setPassword] = useState('123456');
+  const [password, setPassword] = useState('password');
   const [isOpeningGate, setIsOpeningGate] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -28,10 +28,10 @@ export const ImmortalGateModal: React.FC<ImmortalGateModalProps> = ({
     setErrorMessage(null);
     if (type === 'Admin') {
       setEmail('admin@thiendao.online');
-      setPassword('admin123');
+      setPassword('password');
     } else {
       setEmail('bactien.tudao@gmail.com');
-      setPassword('123456');
+      setPassword('password');
     }
   };
 
@@ -44,7 +44,7 @@ export const ImmortalGateModal: React.FC<ImmortalGateModalProps> = ({
     const isAdminTarget = targetEmail.toLowerCase().includes('admin');
 
     // Strict Password Authentication Check for Admin Account
-    if (isAdminTarget && password !== 'admin123') {
+    if (isAdminTarget && password !== 'password') {
       setErrorMessage('❌ Mật khẩu Admin không chính xác! (Mật khẩu Admin mẫu: admin123)');
       soundManager.playBreakthroughSound(false);
       return;
@@ -57,7 +57,7 @@ export const ImmortalGateModal: React.FC<ImmortalGateModalProps> = ({
     }
 
     // Check if account has been Banned by Admin
-    const savedJson = localStorage.getItem(`thien_dao_account_${targetEmail.toLowerCase()}`);
+    const savedJson = null;
     if (savedJson) {
       try {
         const savedData = JSON.parse(savedJson);
@@ -71,11 +71,12 @@ export const ImmortalGateModal: React.FC<ImmortalGateModalProps> = ({
 
     const roleToSet = isAdminTarget ? 'Admin' : 'Player';
 
-    // Trigger Backend API call
+    // The server is the only source of truth for accounts and saved progress.
+    let res;
     if (tab === 'register') {
-      await apiClient.register(targetEmail, undefined, password);
+      res = await apiClient.register(targetEmail, undefined, password);
     } else {
-      const res = await apiClient.login(targetEmail, password);
+      res = await apiClient.login(targetEmail, password);
       if (res && res.status === 'error') {
         setErrorMessage(res.message || '❌ Đăng nhập thất bại!');
         soundManager.playBreakthroughSound(false);
@@ -83,8 +84,13 @@ export const ImmortalGateModal: React.FC<ImmortalGateModalProps> = ({
       }
     }
 
-    // Switch character account profile in game engine
-    loginAccount(targetEmail, roleToSet);
+    if (!res || res.status !== 'success') {
+      setErrorMessage('Khong the ket noi hoac xac thuc voi may chu. Vui long kiem tra Laravel va MySQL.');
+      soundManager.playBreakthroughSound(false);
+      return;
+    }
+
+    loginAccount(targetEmail, res.user?.role || roleToSet, res.gameState);
 
     setIsOpeningGate(true);
     soundManager.playBreakthroughSound(true);

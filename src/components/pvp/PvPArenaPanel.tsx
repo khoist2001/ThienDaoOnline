@@ -11,7 +11,7 @@ interface ArenaOpponent {
   rank: number;
 }
 
-const OPPONENTS: ArenaOpponent[] = [
+const INITIAL_OPPONENTS: ArenaOpponent[] = [
   { id: 'p-1', name: 'Độc Cô Cầu Bại', realm: 'Kim Đan Hậu Kỳ', combatPower: 2800, avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', rank: 1 },
   { id: 'p-2', name: 'Tuyết Sơn Tiên Tử', realm: 'Trúc Cơ Đỉnh Phong', combatPower: 1950, avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150', rank: 2 },
   { id: 'p-3', name: 'Cuồng Kiếm Ma Tôn', realm: 'Trúc Cơ Trung Kỳ', combatPower: 1400, avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150', rank: 3 },
@@ -19,15 +19,39 @@ const OPPONENTS: ArenaOpponent[] = [
 
 export const PvPArenaPanel: React.FC = () => {
   const { character } = useGameStore();
-  const [opponents] = useState(OPPONENTS);
+  const [opponents, setOpponents] = useState(INITIAL_OPPONENTS);
+  const [playerRank, setPlayerRank] = useState<number | null>(null); // null = chưa có hạng
   const [battleResult, setBattleResult] = useState<string | null>(null);
 
   const handleChallenge = (opp: ArenaOpponent) => {
     soundManager.playClick();
     const isWin = character.combatPower >= opp.combatPower * 0.9;
+
     if (isWin) {
       soundManager.playBreakthroughSound(true);
-      setBattleResult(`🎉 Khiêu chiến thành công! Bạn đánh bại [${opp.name}] và vươn lên Hạng ${opp.rank}!`);
+      const wonRank = opp.rank;
+
+      setOpponents((prev) => {
+        const updated = prev.map((o) => {
+          if (o.id === opp.id) {
+            // Người thua nhận hạng cũ của người chơi (hoặc tụt 1 bậc nếu chưa có hạng)
+            return { ...o, rank: playerRank ?? o.rank + 1 };
+          }
+          // Nếu người chơi đã có hạng, các đối thủ có rank nằm giữa (wonRank < rank < playerRank) thì tụt 1 bậc
+          if (playerRank !== null && o.rank > wonRank && o.rank < playerRank) {
+            return { ...o, rank: o.rank + 1 };
+          }
+          // Nếu người chơi chưa có hạng, đối thủ có rank > wonRank thì tụt 1 bậc
+          if (playerRank === null && o.rank > wonRank) {
+            return { ...o, rank: o.rank + 1 };
+          }
+          return o;
+        });
+        return updated.sort((a, b) => a.rank - b.rank);
+      });
+
+      setPlayerRank(wonRank);
+      setBattleResult(`🎉 Khiêu chiến thành công! Đánh bại [${opp.name}] và vươn lên Hạng ${wonRank}!`);
     } else {
       soundManager.playBreakthroughSound(false);
       setBattleResult(`💔 Thất bại! Lực chiến của [${opp.name}] quá vượt trội!`);
@@ -36,13 +60,22 @@ export const PvPArenaPanel: React.FC = () => {
 
   return (
     <div className="w-full bg-slate-950/80 border border-xianxia-gold/30 rounded-2xl p-6 shadow-xl space-y-6">
-      <div className="space-y-1 text-center sm:text-left">
-        <h2 className="font-title text-2xl sm:text-3xl text-gold-gradient">
-          ĐẤU TRƯỜNG TỶ VÕ
-        </h2>
-        <p className="font-subheading text-slate-300 text-xs sm:text-sm">
-          So tài cao thấp cùng chư vị đạo hữu, vinh danh trên Bảng Xếp Hạng Tu Tiên
-        </p>
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="space-y-1 text-center sm:text-left">
+          <h2 className="font-title text-2xl sm:text-3xl text-gold-gradient">
+            ĐẤU TRƯỜNG TỶ VÕ
+          </h2>
+          <p className="font-subheading text-slate-300 text-xs sm:text-sm">
+            So tài cao thấp cùng chư vị đạo hữu, vinh danh trên Bảng Xếp Hạng Tu Tiên
+          </p>
+        </div>
+
+        <div className="bg-slate-900 border border-xianxia-gold/30 px-4 py-2 rounded-xl text-xs font-bold text-xianxia-gold flex items-center space-x-2">
+          <span>🏆 Hạng của bạn:</span>
+          <span className="text-base text-slate-100">
+            {playerRank !== null ? `#${playerRank}` : 'Chưa xếp hạng'}
+          </span>
+        </div>
       </div>
 
       {battleResult && (
@@ -72,9 +105,12 @@ export const PvPArenaPanel: React.FC = () => {
 
             <button
               onClick={() => handleChallenge(opp)}
-              className="w-full py-2 bg-xianxia-gold hover:bg-xianxia-gold-light font-subheading font-bold text-slate-950 rounded-xl transition-all shadow-md"
+              disabled={playerRank !== null && playerRank <= opp.rank}
+              className="w-full py-2 bg-xianxia-gold hover:bg-xianxia-gold-light font-subheading font-bold text-slate-950 rounded-xl transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              ⚔️ Tỷ Võ Khiêu Chiến
+              {playerRank !== null && playerRank <= opp.rank
+                ? '🔒 Hạng thấp hơn bạn'
+                : '⚔️ Tỷ Võ Khiêu Chiến'}
             </button>
           </div>
         ))}

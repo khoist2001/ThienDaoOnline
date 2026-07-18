@@ -43,6 +43,13 @@ export const CombatReplayModal: React.FC<CombatReplayModalProps> = ({
         setIsBattleFinished(true);
         if (victory) {
           addExp(boss.rewards.exp);
+          // Award spirit stones on victory
+          useGameStore.setState((state) => ({
+            character: {
+              ...state.character,
+              spiritStones: state.character.spiritStones + boss.rewards.spiritStones,
+            },
+          }));
           soundManager.playBreakthroughSound(true);
         } else {
           soundManager.playBreakthroughSound(false);

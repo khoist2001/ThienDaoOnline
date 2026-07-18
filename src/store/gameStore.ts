@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Character, Item, Pet, Quest, Achievement, MarketListing, RealmTier, SpiritualRootType } from '../types/game';
+import { apiClient } from '../services/apiClient';
 
 export const REALM_ORDER: RealmTier[] = [
   'Luyện Khí',
@@ -169,7 +170,15 @@ const INITIAL_ACHIEVEMENTS: Achievement[] = [
   },
 ];
 
-interface GameState {
+export interface GameSnapshot {
+  character: Character;
+  inventory: Item[];
+  pets: Pet[];
+  quests: Quest[];
+  achievements: Achievement[];
+}
+
+interface GameState extends GameSnapshot {
   character: Character;
   inventory: Item[];
   pets: Pet[];
@@ -180,9 +189,10 @@ interface GameState {
   activeTribulation: boolean;
   tribulationSuccess: boolean;
   currentAccountEmail: string;
+  isAuthenticated: boolean;
 
   // Actions
-  loginAccount: (email: string, role?: 'Player' | 'Admin') => void;
+  loginAccount: (email: string, role?: 'Player' | 'Admin', savedState?: Partial<GameSnapshot> | null) => void;
   logoutAccount: () => void;
   setRole: (role: 'Player' | 'Moderator' | 'Admin') => void;
   toggleTheme: () => void;
@@ -194,27 +204,11 @@ interface GameState {
   unequipItem: (slot: keyof Character['equippedItems']) => void;
   usePill: (item: Item) => void;
   sellItem: (itemId: string) => void;
-  craftItem: (craftedItem: Item, materialsUsed: string[]) => void;
+  craftItem: (craftedItem: Item, materialsUsed: string[], costStones?: number) => void;
   buyMarketItem: (listingId: string) => void;
   claimQuestReward: (questId: string) => void;
   closeTribulationModal: () => void;
 }
-
-const saveAccountState = (email: string, stateData: any) => {
-  if (!email) return;
-  try {
-    const payload = {
-      character: stateData.character,
-      inventory: stateData.inventory,
-      pets: stateData.pets,
-      quests: stateData.quests,
-      achievements: stateData.achievements,
-    };
-    localStorage.setItem(`thien_dao_account_${email.toLowerCase()}`, JSON.stringify(payload));
-  } catch (e) {
-    // Silent fail fallback
-  }
-};
 
 export const useGameStore = create<GameState>((set, get) => ({
   character: INITIAL_CHARACTER,
@@ -222,7 +216,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   pets: INITIAL_PETS,
   quests: INITIAL_QUESTS,
   achievements: INITIAL_ACHIEVEMENTS,
-  currentAccountEmail: 'bactien.tudao@gmail.com',
+  currentAccountEmail: '',
+  isAuthenticated: false,
   marketListings: [
     {
       id: 'm-1',
@@ -247,30 +242,21 @@ export const useGameStore = create<GameState>((set, get) => ({
   activeTribulation: false,
   tribulationSuccess: false,
 
-  loginAccount: (email, role) => {
+  loginAccount: (email, role, savedState) => {
     const cleanEmail = email.toLowerCase();
     const isAdmin = role === 'Admin' || cleanEmail.includes('admin');
-    
-    // Check if account data exists in localStorage
-    const savedJson = localStorage.getItem(`thien_dao_account_${cleanEmail}`);
-    if (savedJson) {
-      try {
-        const savedData = JSON.parse(savedJson);
-        set({
-          currentAccountEmail: cleanEmail,
-          character: {
-            ...savedData.character,
-            role: isAdmin ? 'Admin' : (savedData.character?.role || 'Player'),
-          },
-          inventory: savedData.inventory || INITIAL_INVENTORY,
-          pets: savedData.pets || INITIAL_PETS,
-          quests: savedData.quests || INITIAL_QUESTS,
-          achievements: savedData.achievements || INITIAL_ACHIEVEMENTS,
-        });
-        return;
-      } catch (e) {
-        // Fallback to fresh initial profile
-      }
+
+    if (savedState?.character) {
+      set({
+        currentAccountEmail: cleanEmail,
+        isAuthenticated: true,
+        character: { ...savedState.character, role: isAdmin ? 'Admin' : savedState.character.role },
+        inventory: savedState.inventory || INITIAL_INVENTORY,
+        pets: savedState.pets || INITIAL_PETS,
+        quests: savedState.quests || INITIAL_QUESTS,
+        achievements: savedState.achievements || INITIAL_ACHIEVEMENTS,
+      });
+      return;
     }
 
     if (isAdmin) {
@@ -306,9 +292,13 @@ export const useGameStore = create<GameState>((set, get) => ({
       };
       set({
         currentAccountEmail: cleanEmail,
+        isAuthenticated: true,
         character: adminChar,
+        inventory: INITIAL_INVENTORY,
+        pets: INITIAL_PETS,
+        quests: INITIAL_QUESTS,
+        achievements: INITIAL_ACHIEVEMENTS,
       });
-      saveAccountState(cleanEmail, { character: adminChar, inventory: INITIAL_INVENTORY, pets: INITIAL_PETS, quests: INITIAL_QUESTS, achievements: INITIAL_ACHIEVEMENTS });
     } else {
       // Normal Player profile switch
       const userName = email.split('@')[0];
@@ -321,15 +311,22 @@ export const useGameStore = create<GameState>((set, get) => ({
       };
       set({
         currentAccountEmail: cleanEmail,
+        isAuthenticated: true,
         character: playerChar,
+        inventory: INITIAL_INVENTORY,
+        pets: INITIAL_PETS,
+        quests: INITIAL_QUESTS,
+        achievements: INITIAL_ACHIEVEMENTS,
       });
-      saveAccountState(cleanEmail, { character: playerChar, inventory: INITIAL_INVENTORY, pets: INITIAL_PETS, quests: INITIAL_QUESTS, achievements: INITIAL_ACHIEVEMENTS });
     }
   },
 
   logoutAccount: () => {
+    apiClient.clearSession();
     set({
       character: INITIAL_CHARACTER,
+      currentAccountEmail: '',
+      isAuthenticated: false,
     });
   },
 
@@ -397,7 +394,6 @@ export const useGameStore = create<GameState>((set, get) => ({
         spiritualPower: Math.min(s.character.spiritualPower + spGain, s.character.maxSpiritualPower),
       },
     }));
-    saveAccountState(get().currentAccountEmail, get());
   },
 
   attemptBreakthrough: (usePill = false) => {
@@ -538,8 +534,12 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
   },
 
-  craftItem: (craftedItem, materialsUsed) => {
+  craftItem: (craftedItem, materialsUsed, costStones = 0) => {
     set((state) => ({
+      character: {
+        ...state.character,
+        spiritStones: state.character.spiritStones - costStones,
+      },
       inventory: [...state.inventory, craftedItem],
     }));
   },
@@ -578,3 +578,29 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   closeTribulationModal: () => set({ activeTribulation: false }),
 }));
+
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+
+useGameStore.subscribe((state, previousState) => {
+  if (!state.isAuthenticated) return;
+
+  const gameDataChanged =
+    state.character !== previousState.character ||
+    state.inventory !== previousState.inventory ||
+    state.pets !== previousState.pets ||
+    state.quests !== previousState.quests ||
+    state.achievements !== previousState.achievements;
+
+  if (!gameDataChanged && previousState.isAuthenticated) return;
+
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    void apiClient.saveGameState({
+      character: state.character,
+      inventory: state.inventory,
+      pets: state.pets,
+      quests: state.quests,
+      achievements: state.achievements,
+    });
+  }, 350);
+});

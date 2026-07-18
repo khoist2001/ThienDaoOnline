@@ -102,7 +102,7 @@ export const AdminDashboard: React.FC = () => {
   // Load live users directly from MySQL Database & Local Storage on mount
   React.useEffect(() => {
     const loadDbUsers = async () => {
-      const localAdminUsersJson = localStorage.getItem('thien_dao_admin_users');
+      const localAdminUsersJson = null;
       let localAdminMap: Record<string, UserRecord> = {};
       if (localAdminUsersJson) {
         try {
@@ -119,7 +119,7 @@ export const AdminDashboard: React.FC = () => {
       if (res && res.users && Array.isArray(res.users) && res.users.length > 0) {
         const mergedUsers = res.users.map((dbUser: UserRecord) => {
           const emailKey = dbUser.email.toLowerCase();
-          const accStorageJson = localStorage.getItem(`thien_dao_account_${emailKey}`);
+          const accStorageJson = null;
           let accStatus = dbUser.status;
           if (accStorageJson) {
             try {
@@ -140,7 +140,6 @@ export const AdminDashboard: React.FC = () => {
           };
         });
         setUsers(mergedUsers);
-        localStorage.setItem('thien_dao_admin_users', JSON.stringify(mergedUsers));
       } else if (Object.keys(localAdminMap).length > 0) {
         setUsers(Object.values(localAdminMap));
       }
@@ -187,7 +186,7 @@ export const AdminDashboard: React.FC = () => {
     const storageKey = `thien_dao_account_${cleanEmail}`;
 
     let existingData: any = {};
-    const savedJson = localStorage.getItem(storageKey);
+    const savedJson = null;
     if (savedJson) {
       try {
         existingData = JSON.parse(savedJson);
@@ -235,12 +234,10 @@ export const AdminDashboard: React.FC = () => {
       character: char,
     };
 
-    localStorage.setItem(storageKey, JSON.stringify(payload));
 
     // Update global admin users list persistence
     setUsers((currentUsers) => {
       const nextUsers = currentUsers.map((u) => (u.email.toLowerCase() === cleanEmail ? { ...u, ...userRecord } : u));
-      localStorage.setItem('thien_dao_admin_users', JSON.stringify(nextUsers));
       return nextUsers;
     });
 
@@ -385,7 +382,6 @@ export const AdminDashboard: React.FC = () => {
     if (!announceText.trim()) return;
     const msg = announceText.trim();
     setBroadcastSent(true);
-    localStorage.setItem('thien_dao_server_broadcast', msg);
     window.dispatchEvent(new CustomEvent('thien_dao_broadcast_updated', { detail: msg }));
     await apiClient.broadcastAnnouncement(msg);
     setTimeout(() => {

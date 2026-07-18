@@ -81,10 +81,17 @@ export const ForgingPanel: React.FC = () => {
           value: selectedRecipe.costStones * 1.5,
           quantity: 1,
         };
-        craftItem(newItem, []);
+        craftItem(newItem, [], selectedRecipe.costStones);
         soundManager.playBreakthroughSound(true);
         setResultMessage(`🎉 Rèn đúc đại thành công! Nhận được [${selectedRecipe.name}]!`);
       } else {
+        // Deduct spirit stones on failure (materials consumed)
+        useGameStore.setState((state) => ({
+          character: {
+            ...state.character,
+            spiritStones: state.character.spiritStones - selectedRecipe.costStones,
+          },
+        }));
         soundManager.playBreakthroughSound(false);
         setResultMessage('💥 Lò luyện bộc phát, rèn đúc thất bại làm hao tổn nguyên liệu!');
       }

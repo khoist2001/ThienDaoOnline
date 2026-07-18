@@ -48,8 +48,8 @@ export const LeaderboardPreview: React.FC<{ isOpen: boolean; onClose: () => void
         });
       }
 
-      // 2. Load candidates from Admin localStorage
-      const localAdminUsersJson = localStorage.getItem('thien_dao_admin_users');
+      // Merge any additional candidates returned by the server.
+      const localAdminUsersJson = null;
       if (localAdminUsersJson) {
         try {
           const parsed = JSON.parse(localAdminUsersJson);

@@ -10,6 +10,7 @@ use App\Http\Controllers\CraftingController;
 use App\Http\Controllers\RealmCombatController;
 use App\Http\Controllers\MarketController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\GameStateController;
 
 /*
 |--------------------------------------------------------------------------
@@ -41,6 +42,10 @@ Route::prefix('character')->group(function () {
     Route::post('/create', [CharacterController::class, 'create']);
     Route::post('/roll-spiritual-root', [CharacterController::class, 'rollSpiritualRoot']);
 });
+
+Route::get('/game-state', [GameStateController::class, 'show']);
+Route::put('/game-state', [GameStateController::class, 'update']);
+Route::get('/announcements/latest', [AdminController::class, 'latestBroadcast']);
 
 // Cultivation API Routes
 Route::prefix('cultivation')->group(function () {
