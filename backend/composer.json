@@ -1,0 +1,27 @@
+{
+    "name": "laravel/thien-dao-backend",
+    "type": "project",
+    "description": "Thiên Đạo Online - Xianxia Game Laravel 12 Backend API Server",
+    "keywords": ["laravel", "framework", "xianxia", "game-backend", "sanctum"],
+    "license": "MIT",
+    "require": {
+        "php": "^8.2",
+        "laravel/framework": "^12.0",
+        "laravel/sanctum": "^4.0",
+        "laravel/tinker": "^2.10"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/",
+            "Database\\Factories\\": "database/factories/",
+            "Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

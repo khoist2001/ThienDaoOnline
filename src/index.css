@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-gold: #f3c669;
+    --color-jade: #2dd4bf;
+    --color-cinnabar: #ef4444;
+    --color-bg: #0a0d14;
+    --color-card: #121824;
+  }
+
+  .mode-demon {
+    --color-gold: #c084fc;
+    --color-jade: #ef4444;
+    --color-bg: #0d0614;
+    --color-card: #190a2a;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: #e2e8f0;
+    font-family: 'Noto Serif', serif;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(10, 13, 20, 0.8);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(243, 198, 105, 0.3);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(243, 198, 105, 0.6);
+}
+
+/* Xianxia Glowing Borders and Badges */
+.gold-border-glow {
+  border: 1px solid rgba(243, 198, 105, 0.4);
+  box-shadow: inset 0 0 15px rgba(243, 198, 105, 0.1), 0 0 15px rgba(243, 198, 105, 0.2);
+}
+
+.jade-border-glow {
+  border: 1px solid rgba(45, 212, 191, 0.4);
+  box-shadow: inset 0 0 15px rgba(45, 212, 191, 0.1), 0 0 15px rgba(45, 212, 191, 0.2);
+}
+
+.cinnabar-border-glow {
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  box-shadow: inset 0 0 15px rgba(239, 68, 68, 0.1), 0 0 15px rgba(239, 68, 68, 0.2);
+}
+
+.xianxia-glass {
+  background: rgba(18, 24, 36, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(243, 198, 105, 0.2);
+}
+
+/* Text Gradients */
+.text-gold-gradient {
+  background: linear-gradient(135deg, #ffe29f 0%, #f3c669 50%, #b8860b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-jade-gradient {
+  background: linear-gradient(135deg, #a7f3d0 0%, #2dd4bf 50%, #0f766e 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Item Rarity Glowing Borders */
+.rarity-pham { border-color: #94a3b8; }
+.rarity-linh { border-color: #38bdf8; box-shadow: 0 0 8px rgba(56, 189, 248, 0.3); }
+.rarity-huyen { border-color: #a855f7; box-shadow: 0 0 12px rgba(168, 85, 247, 0.4); }
+.rarity-dia { border-color: #f59e0b; box-shadow: 0 0 15px rgba(245, 158, 11, 0.5); }
+.rarity-thien { border-color: #ef4444; box-shadow: 0 0 18px rgba(239, 68, 68, 0.6); }
+.rarity-tien { border-color: #ec4899; box-shadow: 0 0 22px rgba(236, 72, 153, 0.7); }
+.rarity-than { border-color: #facc15; box-shadow: 0 0 25px rgba(250, 204, 21, 0.85); animation: pulse 2s infinite; }
+
+/* Marquee Scrolling Animation for Server Announcement Banner */
+@keyframes marquee {
+  0% { transform: translateX(100vw); }
+  100% { transform: translateX(-100%); }
+}
+
+.animate-marquee {
+  display: inline-block;
+  white-space: nowrap;
+  will-change: transform;
+  animation: marquee 18s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}

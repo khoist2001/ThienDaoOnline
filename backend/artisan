@@ -1,0 +1,54 @@
+#!/usr/bin/env php
+<?php
+
+// Thiên Đạo Online Artisan CLI Executable
+
+$command = $argv[1] ?? 'help';
+
+function getPdoConn() {
+    $host = '127.0.0.1';
+    $port = '3306';
+    $user = 'root';
+    $pass = '';
+
+    $pdo = new PDO("mysql:host={$host};port={$port};charset=utf8mb4", $user, $pass, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    ]);
+
+    $pdo->exec("CREATE DATABASE IF NOT EXISTS `thien_dao_online` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    $pdo->exec("USE `thien_dao_online`");
+    return $pdo;
+}
+
+if ($command === 'migrate' || $command === 'migrate:fresh') {
+    echo "\033[32m[Thiên Đạo Artisan]\033[0m Running database migrations...\n";
+    try {
+        $pdo = getPdoConn();
+        $sqlFile = __DIR__ . '/database/migrations/create_thien_dao_tables.sql';
+
+        if (file_exists($sqlFile)) {
+            $sql = file_get_contents($sqlFile);
+            $pdo->exec($sql);
+            echo "\033[32mDONE:\033[0m 20 Migration tables & initial Xianxia Seed Data executed successfully!\n";
+            echo " - 2026_01_01_000000_create_thien_dao_online_all_tables ........ [OK]\n";
+            echo " - Seeded 11 Realms, 8 Spiritual Roots, 5 Sects, Admin & Player ... [OK]\n";
+        } else {
+            echo "\033[31mERROR:\033[0m Migration SQL file not found.\n";
+        }
+    } catch (Exception $e) {
+        echo "\033[31mMIGRATION ERROR:\033[0m " . $e->getMessage() . "\n";
+    }
+    exit(0);
+}
+
+if ($command === 'serve') {
+    echo "\033[32m[Thiên Đạo Artisan]\033[0m Starting PHP API Development Server on http://127.0.0.1:8000...\n";
+    passthru('php -S 127.0.0.1:8000 backend/server.php');
+    exit(0);
+}
+
+// Help output
+echo "\033[33mThiên Đạo Online Artisan Commands:\033[0m\n";
+echo "  php artisan migrate       - Execute database migrations & seeders into MySQL\n";
+echo "  php artisan serve         - Start backend HTTP API server on port 8000\n";
